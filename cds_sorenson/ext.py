@@ -22,36 +22,24 @@
 # waive the privileges and immunities granted to it by virtue of its status
 # as an Intergovernmental Organization or submit itself to any jurisdiction.
 
-"""CDS API to use Sorenson transcoding server"""
+"""CDS API to use Sorenson transcoding server."""
 
 from __future__ import absolute_import, print_function
 
-from flask_babelex import gettext as _
 
-from .views import blueprint
-
-
-class cdssorenson(object):
-    """cds-sorenson extension."""
+class CDSSorenson(object):
+    """CDS Sorenson extension."""
 
     def __init__(self, app=None):
         """Extension initialization."""
-        # TODO: This is an example of translation string with comment. Please
-        # remove it.
-        # NOTE: This is a note to a translator.
-        _('A translation string')
         if app:
             self.init_app(app)
 
     def init_app(self, app):
         """Flask application initialization."""
         self.init_config(app)
-        app.register_blueprint(blueprint)
         app.extensions['cds-sorenson'] = self
 
     def init_config(self, app):
         """Initialize configuration."""
-        app.config.setdefault(
-            "CDS_SORENSON_BASE_TEMPLATE",
-            app.config.get("BASE_TEMPLATE",
-                           "cds_sorenson/base.html"))
+        pass

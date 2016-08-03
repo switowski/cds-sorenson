@@ -87,7 +87,7 @@ setup(
     platforms='any',
     entry_points={
         'invenio_base.apps': [
-            'cds_sorenson = cds_sorenson:cdssorenson',
+            'cds_sorenson = cds_sorenson:CDSSorenson',
         ],
         'invenio_i18n.translations': [
             'messages = cds_sorenson',

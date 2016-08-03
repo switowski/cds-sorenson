@@ -22,11 +22,11 @@
 # waive the privileges and immunities granted to it by virtue of its status
 # as an Intergovernmental Organization or submit itself to any jurisdiction.
 
-"""CDS API to use Sorenson transcoding server"""
+"""CDS API to use Sorenson transcoding server."""
 
 from __future__ import absolute_import, print_function
 
-from .ext import cdssorenson
+from .ext import CDSSorenson
 from .version import __version__
 
-__all__ = ('__version__', 'cdssorenson')
+__all__ = ('__version__', 'CDSSorenson')

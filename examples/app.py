@@ -38,9 +38,9 @@ from __future__ import absolute_import, print_function
 from flask import Flask
 from flask_babelex import Babel
 
-from cds_sorenson import cdssorenson
+from cds_sorenson import CDSSorenson
 
 # Create Flask application
 app = Flask(__name__)
 Babel(app)
-cdssorenson(app)
+CDSSorenson(app)
