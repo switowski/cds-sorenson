@@ -39,7 +39,3 @@ class CDSSorenson(object):
         """Flask application initialization."""
         self.init_config(app)
         app.extensions['cds-sorenson'] = self
-
-    def init_config(self, app):
-        """Initialize configuration."""
-        pass
