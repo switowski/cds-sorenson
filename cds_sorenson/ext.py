@@ -26,6 +26,8 @@
 
 from __future__ import absolute_import, print_function
 
+from . import config
+
 
 class CDSSorenson(object):
     """CDS Sorenson extension."""
@@ -39,3 +41,9 @@ class CDSSorenson(object):
         """Flask application initialization."""
         self.init_config(app)
         app.extensions['cds-sorenson'] = self
+
+    def init_config(self, app):
+        """Initialize configuration."""
+        for k in dir(config):
+            if k.startswith('CDS_SORENSON_'):
+                app.config.setdefault(k, getattr(config, k))

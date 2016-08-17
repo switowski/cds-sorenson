@@ -24,26 +24,13 @@
 
 """API to use Sorenson transcoding server."""
 
+from __future__ import absolute_import, print_function
+
 import json
+import os
 import requests
 
-from __future__ import absolute_import, print_function
 from flask import current_app
-
-
-# TODO: Make authentication better
-# TODO: Move to config file
-SORENSON_USERNAME = 'xxxxxx'  # for testing, use CERN NICE credentials
-SORENSON_PASSWORD = 'xxxxxx'  # for testing, use CERN NICE credentials
-SORENSON_AUTHENTICATION = '?uid={0}&pwd={1}'.format(SORENSON_USERNAME,
-                                                    SORENSON_PASSWORD)
-SORENSON_API_URL = 'http://sorenson03.cern.ch/api/jobs/{job_id}'
-SORENSON_SUBMIT_URL = 'http://sorenson03.cern.ch/api/jobs'
-SORENSON_STATUS_URL = 'http://sorenson03.cern.ch/api/jobs/status/{job_id}'
-SORENSON_INPUT_FOLDER = "file://cern.ch/dfs/Users/s/switowsk/Sorenson/INPUT/"
-SORENSON_OUTPUT_FOLDER = "file://cern.ch/dfs/Users/s/switowsk/Sorenson/OUTPUT/"
-SORENSON_DEFAULT_QUEUE = '00000000-0000-0000-0000-000000000000'
-PRESET_ID = '47752c8c-5fc4-4de3-94e0-a266ce0a3188'  # Random preset
 
 
 class SorensonError(Exception):
@@ -56,105 +43,125 @@ class SorensonError(Exception):
         return self.error_message
 
 
-class TranscodingSorenson(object):
-    """CDS Sorenson extension."""
+def _generate_json(input_filename, output_filename, preset_id):
+    """Generate JSON that will be sent to Sorenson server.
 
-    # def _generate_json(slave, clip, input_name, preset):
-    def _generate_json(filename, input_file_uri, preset):
-        """Generate JSON that will be sent to Sorenson server.
+    :param input_filename: string with the input filename.
+    :param output_filename: string with the output filename.
+    :param preset_id: id of the preset (taken from sorenson dashboard).
+    :returns: JSON with Sorenson response.
+    """
+    output = {}
 
-        :param filename: string with the filename.
-        :param input_file_uri: string with the location of source file.
-        :param preset: id of the preset (taken from sorenson dashboard).
-        :returns: JSON with Sorenson response.
-        """
-        output = {}
+    input_folder = current_app.config['CDS_SORENSON_INPUT_FOLDER']
+    output_folder = current_app.config['CDS_SORENSON_OUTPUT_FOLDER']
+    output['Name'] = input_filename[:49]  # Name in sorenson dashboard
+    output['QueueId'] = current_app.config['CDS_SORENSON_DEFAULT_QUEUE']
 
-        output_file_uri = SORENSON_OUTPUT_FOLDER + filename
-        output['Name'] = filename[:49]
-        output['QueueId'] = SORENSON_DEFAULT_QUEUE
+    source_media = {}
+    source_media['FileUri'] = input_folder + input_filename
+    source_media['UserName'] = current_app.config['CDS_SORENSON_USERNAME']
+    source_media['Password'] = current_app.config['CDS_SORENSON_PASSWORD']
 
-        jobInfo = {}
+    jobInfo = {}
+    jobInfo['SourceMediaList'] = [source_media]
 
-        source_media = {}
-        source_media['FileUri'] = input_file_uri
-        jobInfo['SourceMediaList'] = [source_media]
+    destination_list = {}
+    destination_list['FileUri'] = output_folder + output_filename
+    jobInfo['DestinationList'] = [destination_list]
 
-        destination_list = {}
-        destination_list['FileUri'] = output_file_uri
-        jobInfo['DestinationList'] = [destination_list]
+    preset_id_json = {"PresetId": preset_id}
+    jobInfo['CompressionPresetList'] = [preset_id_json]
 
-        preset_id = {"PresetId": preset}
-        jobInfo['CompressionPresetList'] = [preset_id]
+    output['JobMediaInfo'] = jobInfo
 
-        output['JobMediaInfo'] = jobInfo
+    return output
 
-        return output
 
-    def start(self, filename, input_file_uri, preset):
-        """Encode a video that is already in the input folder."""
-        current_app.logger.debug("Encoding {0} with the preset {1}"
-                                 .format(filename, preset))
+def start_encoding(input_filename, preset_name):
+    """Encode a video that is already in the input folder.
 
-        # Build the request of the transcoding job
-        json_params = self._generate_json(filename, input_file_uri, preset)
+    :param filename: string with the filename.
+    :param preset: id of the preset (taken from sorenson dashboard).
+    :returns: job ID.
+    """
+    current_app.logger.debug("Encoding {0} with the preset {1}"
+                             .format(input_filename, preset_name))
 
-        current_app.logger.debug("Sending request to the Sorenson server")
+    preset_config = current_app.config['CDS_SORENSON_PRESETS'].get(preset_name)
+    preset_id, extension = preset_config
 
-        response = requests.post(SORENSON_SUBMIT_URL + SORENSON_AUTHENTICATION,
-                                 json=json_params)
+    # Output file extension depends on the selected preset
+    output_basename = os.path.splitext(input_filename)
+    output_filename = output_basename + extension
 
-        response_code = response.status_code
-        current_app.logger.debug("Received HTTP code: {0}".
-                                 format(response_code))
+    # Build the request of the encoding job
+    json_params = _generate_json(input_filename, output_filename, preset_id)
 
-        data = json.load(response.text)
+    current_app.logger.debug("Sending request to the Sorenson server")
+    headers = {'Accept': 'application/json'}
+    response = requests.post(current_app.config['CDS_SORENSON_SUBMIT_URL'],
+                             headers=headers, json=json_params)
 
-        current_app.logger.debug("Response from Sorenson: {}".format(data))
-        if response_code == requests.codes.ok:
-            job_id = data.get('JobId')
-            return job_id
-        else:
-            raise SorensonError(
-                "Failed to send transcoding request to the server. Received "
-                "code: {0}".format(response_code)
-            )
+    data = json.loads(response.text)
 
-    def stop(self, job_id):
-        """Stop transcoding job.
+    current_app.logger.debug("Response from Sorenson: {}".format(data))
+    if response.status_code == requests.codes.ok:
+        job_id = data.get('JobId')
+        return job_id
+    else:
+        raise SorensonError(
+            "Failed to send encoding request to the server. Received "
+            "code: {0}".format(response.status_code)
+        )
 
-        :param job_id: string with the job ID.
-        :returns: None.
-        """
-        # TODO: According to the docs, the job should be in "Hold", "Error" or
-        # "Finished" state for this to work - check it
-        delete_url = SORENSON_API_URL.format(job_id=job_id)
-        headers = {'Accept': 'application/json'}
 
-        response = requests.delete(delete_url + SORENSON_AUTHENTICATION,
-                                   headers=headers)
-        response_code = response.status_code
-        if response_code == requests.codes.ok:
-            current_app.logger.debug("Stopped job {0}".format(job_id))
-        else:
-            raise SorensonError("Could not stop job: {0}".format(job_id))
+def stop_encoding(job_id):
+    """Stop encoding job.
 
-    def status(self, job_id):
-        """Get status of a given job from the Sorenson server.
+    :param job_id: string with the job ID.
+    :returns: None.
+    """
+    # TODO: According to the docs, the job should be in "Hold", "Error" or
+    # "Finished" state for this to work - check it
+    delete_url = (current_app.config['CDS_SORENSON_DELETE_URL']
+                             .format(job_id=job_id))
+    headers = {'Accept': 'application/json'}
 
-        :param job_id: string with the job ID.
-        :returns: JSON with Sorenson response.
-        """
-        status_url = SORENSON_STATUS_URL.format(job_id=job_id)
-        headers = {'Accept': 'application/json'}
+    response = requests.delete(delete_url, headers=headers)
+    if response.status_code == requests.codes.ok:
+        current_app.logger.debug("Stopped job {0}".format(job_id))
+    else:
+        raise SorensonError("Could not stop job: {0}".format(job_id))
 
-        current_app.logger.debug("Sending request to the Sorenson server")
-        response = requests.get(status_url + SORENSON_AUTHENTICATION,
-                                headers=headers)
 
-        response_code = response.status_code
-        if response_code == requests.codes.ok:
-            return json.load(response.text)
-        else:
-            raise SorensonError("Failed to get status for job: {0}".
-                                format(response_code))
+def get_encoding_status(job_id):
+    """Get status of a given job from the Sorenson server.
+
+    If the job can't be found in the current queue, it's probably done, so we
+    check the archival queue.
+
+    :param job_id: string with the job ID.
+    :returns: JSON with Sorenson response.
+    """
+    current_jobs_url = (current_app
+                        .config['CDS_SORENSON_CURRENT_JOBS_STATUS_URL']
+                        .format(job_id=job_id))
+    archive_jobs_url = (current_app
+                        .config['CDS_SORENSON_ARCHIVE_JOBS_STATUS_URL']
+                        .format(job_id=job_id))
+
+    headers = {'Accept': 'application/json'}
+
+    current_app.logger.debug("Checking in the current jobs queue")
+    response = requests.get(current_jobs_url, headers=headers)
+
+    if response.status_code == 404:
+        current_app.logger.debug("Checking in the archive jobs queue")
+        response = requests.get(archive_jobs_url, headers=headers)
+
+    if response.status_code == requests.codes.ok:
+        return json.loads(response.text)
+    else:
+        raise SorensonError("Failed to get status for job: {0}".
+                            format(response.status_code))
