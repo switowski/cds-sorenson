@@ -92,7 +92,7 @@ def start_encoding(input_filename, preset_name):
     preset_id, extension = preset_config
 
     # Output file extension depends on the selected preset
-    output_basename = os.path.splitext(input_filename)
+    output_basename = os.path.splitext(input_filename)[0]
     output_filename = output_basename + extension
 
     # Build the request of the encoding job
@@ -112,7 +112,8 @@ def start_encoding(input_filename, preset_name):
     else:
         raise SorensonError(
             "Failed to send encoding request to the server. Received "
-            "code: {0}".format(response.status_code)
+            "code: {0}. Make sure all parameters are set and permissions are "
+            "correct".format(response.status_code)
         )
 
 
