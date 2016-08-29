@@ -91,6 +91,9 @@ setup(
         'invenio_base.apps': [
             'cds_sorenson = cds_sorenson:CDSSorenson',
         ],
+        'invenio_base.api_apps': [
+            'cds_sorenson = cds_sorenson:CDSSorenson',
+        ],
         'invenio_i18n.translations': [
             'messages = cds_sorenson',
         ],
