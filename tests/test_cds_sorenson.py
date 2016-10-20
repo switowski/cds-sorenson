@@ -27,14 +27,42 @@
 
 from __future__ import absolute_import, print_function
 
-import json
+import pytest
 
 from flask import Flask
 from mock import MagicMock, patch
 
 from cds_sorenson import CDSSorenson
-from cds_sorenson.api import start_encoding, stop_encoding, \
-    get_encoding_status
+from cds_sorenson.api import get_encoding_status, start_encoding, \
+    stop_encoding, SorensonError
+
+
+class MockRequests(object):
+    """Mock the requests library.
+
+    We need to mock it like that, so we can count the number of times the
+    delete function was called and raise exception if it was called more than
+    once
+    """
+
+    called = 0
+    codes = MagicMock()
+    codes.ok = 200
+
+    class MockResponse(object):
+        """Mock of the Response object."""
+
+        def __init__(self):
+            self.status_code = 200
+
+    @classmethod
+    def delete(cls, delete_url, headers):
+        """Mock the get method."""
+        MockRequests.called += 1
+        if MockRequests.called > 1:
+            raise SorensonError
+        else:
+            return cls.MockResponse()
 
 
 def test_version():
@@ -59,7 +87,8 @@ def test_init():
 @patch('cds_sorenson.api.requests.post')
 def test_start_encoding(requests_post_mock, app, start_response):
     """Test if starting encoding works."""
-    filename = 'CDS_TEST.mp4'
+    filename = 'file://cernbox-smb.cern.ch/eoscds/test/sorenson_input/' \
+               '1111-dddd-3333-aaaa/data.mp4'
     preset = 'Youtube 480p'
 
     # Mock sorenson response
@@ -69,13 +98,13 @@ def test_start_encoding(requests_post_mock, app, start_response):
     requests_post_mock.return_value = sorenson_response
 
     job_id = start_encoding(filename, preset)
-    assert job_id == "11111111-aaaa"
+    assert job_id == "1234-2345-abcd"
 
 
 @patch('cds_sorenson.api.requests.get')
 def test_encoding_status(requests_get_mock, app, running_job_status_response):
     """Test if getting encoding status works."""
-    job_id = "11111111-aaaa"
+    job_id = "1234-2345-abcd"
 
     # Mock sorenson response
     sorenson_response = MagicMock()
@@ -83,14 +112,14 @@ def test_encoding_status(requests_get_mock, app, running_job_status_response):
     sorenson_response.status_code = 200
     requests_get_mock.return_value = sorenson_response
 
-    status_json = get_encoding_status(job_id)
-    assert status_json == json.loads(running_job_status_response)
+    encoding_status = get_encoding_status(job_id)
+    assert encoding_status == ('Hold', 55.810001373291016)
 
 
 @patch('cds_sorenson.api.requests.delete')
 def test_stop_encoding(requests_delete_mock, app):
     """Test if stopping encoding works."""
-    job_id = "11111111-aaaa"
+    job_id = "1234-2345-abcd"
 
     # Mock sorenson response
     sorenson_response = MagicMock()
@@ -101,5 +130,14 @@ def test_stop_encoding(requests_delete_mock, app):
     # In case of some problems, we should get an exception
     assert returned_value is None
 
-# TODO: Test if stopping non-existing job (or stopping the same job twice)
-# gives an error
+
+@patch('cds_sorenson.api.requests', MockRequests)
+def test_stop_encoding_twice_fails(app):
+    """Test if stopping the same job twice fails."""
+    job_id = "1234-2345-abcd"
+
+    # Stop encoding works for the first time...
+    stop_encoding(job_id)
+    # ... and fails for the second
+    with pytest.raises(SorensonError):
+        stop_encoding(job_id)

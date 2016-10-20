@@ -27,10 +27,11 @@
 from __future__ import absolute_import, print_function
 
 import json
-import os
 import requests
 
 from flask import current_app
+
+from .utils import generate_json_for_encoding
 
 
 class SorensonError(Exception):
@@ -43,60 +44,21 @@ class SorensonError(Exception):
         return self.error_message
 
 
-def _generate_json(input_filename, output_filename, preset_id):
-    """Generate JSON that will be sent to Sorenson server.
-
-    :param input_filename: string with the input filename.
-    :param output_filename: string with the output filename.
-    :param preset_id: id of the preset (taken from sorenson dashboard).
-    :returns: JSON with Sorenson response.
-    """
-    output = {}
-
-    input_folder = current_app.config['CDS_SORENSON_INPUT_FOLDER']
-    output_folder = current_app.config['CDS_SORENSON_OUTPUT_FOLDER']
-    output['Name'] = input_filename[:49]  # Name in sorenson dashboard
-    output['QueueId'] = current_app.config['CDS_SORENSON_DEFAULT_QUEUE']
-
-    source_media = {}
-    source_media['FileUri'] = input_folder + input_filename
-    source_media['UserName'] = current_app.config['CDS_SORENSON_USERNAME']
-    source_media['Password'] = current_app.config['CDS_SORENSON_PASSWORD']
-
-    jobInfo = {}
-    jobInfo['SourceMediaList'] = [source_media]
-
-    destination_list = {}
-    destination_list['FileUri'] = output_folder + output_filename
-    jobInfo['DestinationList'] = [destination_list]
-
-    preset_id_json = {"PresetId": preset_id}
-    jobInfo['CompressionPresetList'] = [preset_id_json]
-
-    output['JobMediaInfo'] = jobInfo
-
-    return output
-
-
-def start_encoding(input_filename, preset_name):
+def start_encoding(input_file, preset_name):
     """Encode a video that is already in the input folder.
 
-    :param filename: string with the filename.
+    :param filename: string with the filename, something like
+        /eos/cds/test/sorenson/8f/m2/728-jsod98-8s9df2-89fg-lksdjf/data where
+        the last part "data" is the filename and the last directory is the
+        bucket id.
     :param preset: id of the preset (taken from sorenson dashboard).
     :returns: job ID.
     """
     current_app.logger.debug("Encoding {0} with the preset {1}"
-                             .format(input_filename, preset_name))
-
-    preset_config = current_app.config['CDS_SORENSON_PRESETS'].get(preset_name)
-    preset_id, extension = preset_config
-
-    # Output file extension depends on the selected preset
-    output_basename = os.path.splitext(input_filename)[0]
-    output_filename = output_basename + extension
+                             .format(input_file, preset_name))
 
     # Build the request of the encoding job
-    json_params = _generate_json(input_filename, output_filename, preset_id)
+    json_params = generate_json_for_encoding(input_file, preset_name)
 
     current_app.logger.debug("Sending request to the Sorenson server")
     headers = {'Accept': 'application/json'}
@@ -123,8 +85,6 @@ def stop_encoding(job_id):
     :param job_id: string with the job ID.
     :returns: None.
     """
-    # TODO: According to the docs, the job should be in "Hold", "Error" or
-    # "Finished" state for this to work - check it
     delete_url = (current_app.config['CDS_SORENSON_DELETE_URL']
                              .format(job_id=job_id))
     headers = {'Accept': 'application/json'}
@@ -143,8 +103,22 @@ def get_encoding_status(job_id):
     check the archival queue.
 
     :param job_id: string with the job ID.
-    :returns: JSON with Sorenson response.
+    :returns: tuple with the status message and progress in %.
     """
+    SORENSON_STATUSES = {
+        0: 'Undefined',
+        1: 'Waiting',
+        2: 'Downloading',
+        3: 'Transcoding',
+        4: 'Uploading',
+        5: 'Finished',
+        6: 'Error',
+        7: 'Canceled',
+        8: 'Deleted',
+        9: 'Hold',
+        10: 'Incomplete'
+    }
+
     current_jobs_url = (current_app
                         .config['CDS_SORENSON_CURRENT_JOBS_STATUS_URL']
                         .format(job_id=job_id))
@@ -162,7 +136,23 @@ def get_encoding_status(job_id):
         response = requests.get(archive_jobs_url, headers=headers)
 
     if response.status_code == requests.codes.ok:
-        return json.loads(response.text)
-    else:
+        if response.text == '':
+            # encoding job was canceled
+            return ("Canceled", 100)
+        status_json = json.loads(response.text)
+        # there are different ways to get the status of a job, depending if
+        # the job was successful, so we should check for the status code in
+        # different places
+        job_status = status_json.get('Status', None).get('Status')
+        job_progress = status_json.get('Status', None).get('Progress')
+        if job_status:
+            return (SORENSON_STATUSES.get(job_status), job_progress)
+        # status not found? check in different place
+        job_status = status_json.get('StatusStateId')
+        if job_status:
+            # job is probably either finished or failed, so the progress will
+            # always be 100% in this case
+            return (SORENSON_STATUSES.get(job_status), 100)
+        # if there is still no status then something is wrong, so let's fail
         raise SorensonError("Failed to get status for job: {0}".
                             format(response.status_code))
