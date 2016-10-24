@@ -47,11 +47,11 @@ class SorensonError(Exception):
 def start_encoding(input_file, preset_name):
     """Encode a video that is already in the input folder.
 
-    :param filename: string with the filename, something like
+    :param input_file: string with the filename, something like
         /eos/cds/test/sorenson/8f/m2/728-jsod98-8s9df2-89fg-lksdjf/data where
         the last part "data" is the filename and the last directory is the
         bucket id.
-    :param preset: id of the preset (taken from sorenson dashboard).
+    :param preset_name: id of the preset (taken from sorenson dashboard).
     :returns: job ID.
     """
     current_app.logger.debug("Encoding {0} with the preset {1}"
@@ -60,23 +60,37 @@ def start_encoding(input_file, preset_name):
     # Build the request of the encoding job
     json_params = generate_json_for_encoding(input_file, preset_name)
 
-    current_app.logger.debug("Sending request to the Sorenson server")
     headers = {'Accept': 'application/json'}
     response = requests.post(current_app.config['CDS_SORENSON_SUBMIT_URL'],
                              headers=headers, json=json_params)
 
     data = json.loads(response.text)
 
-    current_app.logger.debug("Response from Sorenson: {}".format(data))
     if response.status_code == requests.codes.ok:
         job_id = data.get('JobId')
         return job_id
     else:
-        raise SorensonError(
-            "Failed to send encoding request to the server. Received "
-            "code: {0}. Make sure all parameters are set and permissions are "
-            "correct".format(response.status_code)
-        )
+        # something is wrong - sorenson server is not responding or the
+        # configuration is wrong and we can't contact sorenson server
+        raise SorensonError(response.status_code)
+
+
+def batch_start_encoding(input_file, presets_names):
+    """Start encoding multiple files with multiple presets.
+
+    :param input_file: string with the filename, something like
+        /eos/cds/test/sorenson/8f/m2/728-jsod98-8s9df2-89fg-lksdjf/data where
+        the last part "data" is the filename and the last directory is the
+        bucket id.
+    :param presets_names: list of presets.
+    :returns: list with jobs_id.
+
+    Each file will be encoded with each preset.
+    """
+    jobs_ids = []
+    for preset in presets_names:
+        jobs_ids.append(start_encoding(input_file, preset))
+    return jobs_ids
 
 
 def stop_encoding(job_id):
@@ -94,6 +108,21 @@ def stop_encoding(job_id):
         current_app.logger.debug("Stopped job {0}".format(job_id))
     else:
         raise SorensonError("Could not stop job: {0}".format(job_id))
+
+
+def batch_stop_encoding(jobs_ids):
+    """Stop encoding multiple files.
+
+    :param jobs_id: list of jobs ids to stop.
+    :returns: None
+    """
+    for job_id in jobs_ids:
+        try:
+            stop_encoding(job_id)
+        except SorensonError:
+            # If we failed to stop the encoding job, ignore it - in the worst
+            # case the encoding will finish and we won't use the file.
+            pass
 
 
 def get_encoding_status(job_id):
@@ -156,3 +185,18 @@ def get_encoding_status(job_id):
         # if there is still no status then something is wrong, so let's fail
         raise SorensonError("Failed to get status for job: {0}".
                             format(response.status_code))
+    # We shouldn't get here, raise an exception
+    raise SorensonError(response.status_code)
+
+
+def batch_get_encoding_status(jobs_ids):
+    """Get status for multiple encoding jobs.
+
+    :param jobs_id: list of jobs ids.
+    :returns: dictionary where they keys are the job IDs and values are tuples
+        with status and progress
+    """
+    statuses = {}
+    for job_id in jobs_ids:
+        statuses[job_id] = get_encoding_status(job_id)
+    return statuses
