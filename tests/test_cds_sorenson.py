@@ -33,8 +33,10 @@ from flask import Flask
 from mock import MagicMock, patch
 
 from cds_sorenson import CDSSorenson
-from cds_sorenson.api import batch_get_encoding_status, batch_start_encoding, \
-    batch_stop_encoding, get_encoding_status, start_encoding, stop_encoding
+
+from cds_sorenson.api import batch_get_encoding_status, \
+    batch_restart_encoding, batch_start_encoding, batch_stop_encoding, \
+    get_encoding_status, restart_encoding, start_encoding, stop_encoding
 
 from cds_sorenson.error import SorensonError
 
@@ -205,3 +207,51 @@ def test_batch_stop_encoding_twice_does_not_fail(app):
     # batch_stop_encoding should never raise an exception.
     returned_value = batch_stop_encoding(jobs_id)
     assert returned_value is None
+
+
+@patch('cds_sorenson.api.requests.post')
+@patch('cds_sorenson.api.requests.delete')
+def test_restart_encoding(requests_delete_mock, requests_post_mock, app,
+                          start_response):
+    """Test if restarting encoding works."""
+    job_id = "1111-2222-aaaa"
+    filename = '/sorenson_input/1111-dddd-3333-aaaa/data.mp4'
+    preset = 'Youtube 480p'
+
+    # Mock sorenson responses
+    delete_response = MagicMock()
+    delete_response.status_code = 200
+    requests_delete_mock.return_value = delete_response
+
+    post_response = MagicMock()
+    post_response.text = start_response
+    post_response.status_code = 200
+    requests_post_mock.return_value = post_response
+
+    job_id = restart_encoding(job_id, filename, preset)
+    assert job_id == "1234-2345-abcd"
+
+
+@patch('cds_sorenson.api.requests.post')
+@patch('cds_sorenson.api.requests.delete')
+def test_batch_restart_encoding(requests_delete_mock, requests_post_mock, app,
+                                start_response):
+    """Test if restarting encoding works."""
+    jobs_ids = ["1111-2222-aaaa", "1111-2222-bbbb"]
+    # It doesn't matter if we send the same file to encoding with the same
+    # preset, it should still work
+    filename = '/sorenson_input/1111-dddd-3333-aaaa/data.mp4'
+    presets = ['Youtube 480p', 'Youtube 480p']
+
+    # Mock sorenson responses
+    delete_response = MagicMock()
+    delete_response.status_code = 200
+    requests_delete_mock.return_value = delete_response
+
+    post_response = MagicMock()
+    post_response.text = start_response
+    post_response.status_code = 200
+    requests_post_mock.return_value = post_response
+
+    jobs_ids = batch_restart_encoding(jobs_ids, filename, presets)
+    assert jobs_ids == ["1234-2345-abcd", "1234-2345-abcd"]

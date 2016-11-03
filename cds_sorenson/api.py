@@ -168,3 +168,37 @@ def batch_get_encoding_status(jobs_ids):
     for job_id in jobs_ids:
         statuses[job_id] = get_encoding_status(job_id)
     return statuses
+
+
+def restart_encoding(job_id, input_file, preset_name):
+    """Try to stop the encoding job and start a new one.
+
+    It's impossible to get the input_file and preset_name from the job_id, if
+    the job has not yet finished, so we need to specify all parameters for
+    stopping and starting the encoding job.
+    """
+    try:
+        stop_encoding(job_id)
+    except SorensonError:
+        # If we failed to stop the encoding job, ignore it - in the worst
+        # case the encoding will finish and we will overwrite the file.
+        pass
+    return start_encoding(input_file, preset_name)
+
+
+def batch_restart_encoding(jobs_ids, input_file, presets_names):
+    """Restart multiple encoding jobs.
+
+    :param input_file: string with the filename, something like
+        /eos/cds/test/sorenson/8f/m2/728-jsod98-8s9df2-89fg-lksdjf/data where
+        the last part "data" is the filename and the last directory is the
+        bucket id.
+    :param input_files: list of full paths to files.
+    :param presets_names: list of presets.
+    :returns: list with jobs_id.
+    """
+    if len(jobs_ids) != len(presets_names):
+        raise SorensonError("The amount of of jobs to stop is different than"
+                            " the amount of jobs to start!")
+    batch_stop_encoding(jobs_ids)
+    return batch_start_encoding(input_file, presets_names)
