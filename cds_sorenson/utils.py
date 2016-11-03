@@ -26,7 +26,11 @@
 
 from __future__ import absolute_import, print_function
 
+import requests
+
 from flask import current_app
+
+from .error import SorensonError
 
 
 def generate_json_for_encoding(file_path, preset_name):
@@ -75,3 +79,33 @@ def generate_json_for_encoding(file_path, preset_name):
     output['JobMediaInfo'] = jobInfo
 
     return output
+
+
+def get_status(job_id):
+    """For a given job id, returns the status as JSON string.
+
+    If the job can't be found in the current queue, it's probably done, so we
+    check the archival queue. Raises an exception if there the response has a
+    different code than 200.
+
+    :param job_id: string with the job ID.
+    :returns: JSON with the status or empty string if the job was not found.
+    """
+    current_jobs_url = (current_app
+                        .config['CDS_SORENSON_CURRENT_JOBS_STATUS_URL']
+                        .format(job_id=job_id))
+    archive_jobs_url = (current_app
+                        .config['CDS_SORENSON_ARCHIVE_JOBS_STATUS_URL']
+                        .format(job_id=job_id))
+
+    headers = {'Accept': 'application/json'}
+
+    response = requests.get(current_jobs_url, headers=headers)
+
+    if response.status_code == 404:
+        response = requests.get(archive_jobs_url, headers=headers)
+
+    if response.status_code == requests.codes.ok:
+        return response.text
+    else:
+        raise SorensonError(response.status_code)

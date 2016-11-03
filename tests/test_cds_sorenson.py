@@ -33,9 +33,10 @@ from flask import Flask
 from mock import MagicMock, patch
 
 from cds_sorenson import CDSSorenson
-from cds_sorenson.api import get_encoding_status, batch_get_encoding_status,\
-    start_encoding, batch_start_encoding, stop_encoding, batch_stop_encoding,\
-    SorensonError
+from cds_sorenson.api import batch_get_encoding_status, batch_start_encoding, \
+    batch_stop_encoding, get_encoding_status, start_encoding, stop_encoding
+
+from cds_sorenson.error import SorensonError
 
 
 class MockRequests(object):
@@ -169,7 +170,7 @@ def test_stop_encoding(requests_delete_mock, app):
     assert returned_value is None
 
 
-@patch('cds_sorenson.api.requests.get')
+@patch('cds_sorenson.api.requests.delete')
 def test_batch_stop_encoding(requests_delete_mock, app):
     """Test if stopping multiple encoding jobs works."""
     jobs_id = ["1234-2345-4444", "1234-2345-5555"]
@@ -197,7 +198,7 @@ def test_stop_encoding_twice_fails(app):
 
 
 @patch('cds_sorenson.api.requests', MockRequests)
-def test_stop_batch_encoding_never_fails(app):
+def test_batch_stop_encoding_twice_does_not_fail(app):
     """Test that batch-stopping the same job twice works."""
     jobs_id = ["1234-2345-abcd", "1234-2345-abcd"]
 

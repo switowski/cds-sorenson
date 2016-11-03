@@ -31,17 +31,8 @@ import requests
 
 from flask import current_app
 
-from .utils import generate_json_for_encoding
-
-
-class SorensonError(Exception):
-    """Base class for exceptions in this module."""
-
-    def _init_(self, error_message):
-        self.error_message = error_message
-
-    def _str_(self):
-        return self.error_message
+from .error import SorensonError
+from .utils import generate_json_for_encoding, get_status
 
 
 def start_encoding(input_file, preset_name):
@@ -76,7 +67,7 @@ def start_encoding(input_file, preset_name):
 
 
 def batch_start_encoding(input_file, presets_names):
-    """Start encoding multiple files with multiple presets.
+    """Start encoding file with multiple presets.
 
     :param input_file: string with the filename, something like
         /eos/cds/test/sorenson/8f/m2/728-jsod98-8s9df2-89fg-lksdjf/data where
@@ -84,8 +75,6 @@ def batch_start_encoding(input_file, presets_names):
         bucket id.
     :param presets_names: list of presets.
     :returns: list with jobs_id.
-
-    Each file will be encoded with each preset.
     """
     jobs_ids = []
     for preset in presets_names:
@@ -104,10 +93,8 @@ def stop_encoding(job_id):
     headers = {'Accept': 'application/json'}
 
     response = requests.delete(delete_url, headers=headers)
-    if response.status_code == requests.codes.ok:
-        current_app.logger.debug("Stopped job {0}".format(job_id))
-    else:
-        raise SorensonError("Could not stop job: {0}".format(job_id))
+    if response.status_code != requests.codes.ok:
+        raise SorensonError(response.status_code)
 
 
 def batch_stop_encoding(jobs_ids):
@@ -148,45 +135,26 @@ def get_encoding_status(job_id):
         10: 'Incomplete'
     }
 
-    current_jobs_url = (current_app
-                        .config['CDS_SORENSON_CURRENT_JOBS_STATUS_URL']
-                        .format(job_id=job_id))
-    archive_jobs_url = (current_app
-                        .config['CDS_SORENSON_ARCHIVE_JOBS_STATUS_URL']
-                        .format(job_id=job_id))
-
-    headers = {'Accept': 'application/json'}
-
-    current_app.logger.debug("Checking in the current jobs queue")
-    response = requests.get(current_jobs_url, headers=headers)
-
-    if response.status_code == 404:
-        current_app.logger.debug("Checking in the archive jobs queue")
-        response = requests.get(archive_jobs_url, headers=headers)
-
-    if response.status_code == requests.codes.ok:
-        if response.text == '':
-            # encoding job was canceled
-            return ("Canceled", 100)
-        status_json = json.loads(response.text)
-        # there are different ways to get the status of a job, depending if
-        # the job was successful, so we should check for the status code in
-        # different places
-        job_status = status_json.get('Status', None).get('Status')
-        job_progress = status_json.get('Status', None).get('Progress')
-        if job_status:
-            return (SORENSON_STATUSES.get(job_status), job_progress)
-        # status not found? check in different place
-        job_status = status_json.get('StatusStateId')
-        if job_status:
-            # job is probably either finished or failed, so the progress will
-            # always be 100% in this case
-            return (SORENSON_STATUSES.get(job_status), 100)
-        # if there is still no status then something is wrong, so let's fail
-        raise SorensonError("Failed to get status for job: {0}".
-                            format(response.status_code))
-    # We shouldn't get here, raise an exception
-    raise SorensonError(response.status_code)
+    status = get_status(job_id)
+    if status == '':
+        # encoding job was canceled
+        return ("Canceled", 100)
+    status_json = json.loads(status)
+    # there are different ways to get the status of a job, depending if
+    # the job was successful, so we should check for the status code in
+    # different places
+    job_status = status_json.get('Status', None).get('Status')
+    job_progress = status_json.get('Status', None).get('Progress')
+    if job_status:
+        return (SORENSON_STATUSES.get(job_status), job_progress)
+    # status not found? check in different place
+    job_status = status_json.get('StatusStateId')
+    if job_status:
+        # job is probably either finished or failed, so the progress will
+        # always be 100% in this case
+        return (SORENSON_STATUSES.get(job_status), 100)
+    # No status was found (which shouldn't happen)
+    raise SorensonError("No status found for job: {0}".format(job_id))
 
 
 def batch_get_encoding_status(jobs_ids):
