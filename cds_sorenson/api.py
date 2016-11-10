@@ -27,15 +27,15 @@
 from __future__ import absolute_import, print_function
 
 import json
-import requests
 
+import requests
 from flask import current_app
 
 from .error import SorensonError
 from .utils import generate_json_for_encoding, get_status
 
 
-def start_encoding(input_file, preset_name):
+def start_encoding(input_file, preset_name, output_file=None):
     """Encode a video that is already in the input folder.
 
     :param input_file: string with the filename, something like
@@ -43,13 +43,15 @@ def start_encoding(input_file, preset_name):
         the last part "data" is the filename and the last directory is the
         bucket id.
     :param preset_name: id of the preset (taken from sorenson dashboard).
+    :param output_file: the file to output the transcoded file.
     :returns: job ID.
     """
-    current_app.logger.debug("Encoding {0} with the preset {1}"
+    current_app.logger.debug('Encoding {0} with the preset {1}'
                              .format(input_file, preset_name))
 
     # Build the request of the encoding job
-    json_params = generate_json_for_encoding(input_file, preset_name)
+    json_params = generate_json_for_encoding(input_file, preset_name,
+                                             output_file)
 
     headers = {'Accept': 'application/json'}
     response = requests.post(current_app.config['CDS_SORENSON_SUBMIT_URL'],
@@ -66,22 +68,6 @@ def start_encoding(input_file, preset_name):
         raise SorensonError(response.status_code)
 
 
-def batch_start_encoding(input_file, presets_names):
-    """Start encoding file with multiple presets.
-
-    :param input_file: string with the filename, something like
-        /eos/cds/test/sorenson/8f/m2/728-jsod98-8s9df2-89fg-lksdjf/data where
-        the last part "data" is the filename and the last directory is the
-        bucket id.
-    :param presets_names: list of presets.
-    :returns: list with jobs_id.
-    """
-    jobs_ids = []
-    for preset in presets_names:
-        jobs_ids.append(start_encoding(input_file, preset))
-    return jobs_ids
-
-
 def stop_encoding(job_id):
     """Stop encoding job.
 
@@ -95,21 +81,6 @@ def stop_encoding(job_id):
     response = requests.delete(delete_url, headers=headers)
     if response.status_code != requests.codes.ok:
         raise SorensonError(response.status_code)
-
-
-def batch_stop_encoding(jobs_ids):
-    """Stop encoding multiple files.
-
-    :param jobs_id: list of jobs ids to stop.
-    :returns: None
-    """
-    for job_id in jobs_ids:
-        try:
-            stop_encoding(job_id)
-        except SorensonError:
-            # If we failed to stop the encoding job, ignore it - in the worst
-            # case the encoding will finish and we won't use the file.
-            pass
 
 
 def get_encoding_status(job_id):
@@ -138,7 +109,7 @@ def get_encoding_status(job_id):
     status = get_status(job_id)
     if status == '':
         # encoding job was canceled
-        return ("Canceled", 100)
+        return "Canceled", 100
     status_json = json.loads(status)
     # there are different ways to get the status of a job, depending if
     # the job was successful, so we should check for the status code in
@@ -146,31 +117,18 @@ def get_encoding_status(job_id):
     job_status = status_json.get('Status', None).get('Status')
     job_progress = status_json.get('Status', None).get('Progress')
     if job_status:
-        return (SORENSON_STATUSES.get(job_status), job_progress)
+        return SORENSON_STATUSES.get(job_status), job_progress
     # status not found? check in different place
     job_status = status_json.get('StatusStateId')
     if job_status:
         # job is probably either finished or failed, so the progress will
         # always be 100% in this case
-        return (SORENSON_STATUSES.get(job_status), 100)
+        return SORENSON_STATUSES.get(job_status), 100
     # No status was found (which shouldn't happen)
-    raise SorensonError("No status found for job: {0}".format(job_id))
+    raise SorensonError('No status found for job: {0}'.format(job_id))
 
 
-def batch_get_encoding_status(jobs_ids):
-    """Get status for multiple encoding jobs.
-
-    :param jobs_id: list of jobs ids.
-    :returns: dictionary where they keys are the job IDs and values are tuples
-        with status and progress
-    """
-    statuses = {}
-    for job_id in jobs_ids:
-        statuses[job_id] = get_encoding_status(job_id)
-    return statuses
-
-
-def restart_encoding(job_id, input_file, preset_name):
+def restart_encoding(job_id, input_file, preset_name, output_file=None):
     """Try to stop the encoding job and start a new one.
 
     It's impossible to get the input_file and preset_name from the job_id, if
@@ -183,22 +141,4 @@ def restart_encoding(job_id, input_file, preset_name):
         # If we failed to stop the encoding job, ignore it - in the worst
         # case the encoding will finish and we will overwrite the file.
         pass
-    return start_encoding(input_file, preset_name)
-
-
-def batch_restart_encoding(jobs_ids, input_file, presets_names):
-    """Restart multiple encoding jobs.
-
-    :param input_file: string with the filename, something like
-        /eos/cds/test/sorenson/8f/m2/728-jsod98-8s9df2-89fg-lksdjf/data where
-        the last part "data" is the filename and the last directory is the
-        bucket id.
-    :param input_files: list of full paths to files.
-    :param presets_names: list of presets.
-    :returns: list with jobs_id.
-    """
-    if len(jobs_ids) != len(presets_names):
-        raise SorensonError("The amount of of jobs to stop is different than"
-                            " the amount of jobs to start!")
-    batch_stop_encoding(jobs_ids)
-    return batch_start_encoding(input_file, presets_names)
+    return start_encoding(input_file, preset_name, output_file)

@@ -30,8 +30,10 @@ from __future__ import absolute_import, print_function
 class SorensonError(Exception):
     """Base class for exceptions in this module."""
 
-    def _init_(self, error_message):
+    def __init__(self, error_message=''):
+        """Initialize exception with error message."""
         self.error_message = error_message
 
-    def _str_(self):
+    def __str__(self):
+        """Show error message."""
         return self.error_message

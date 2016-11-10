@@ -34,9 +34,8 @@ from mock import MagicMock, patch
 
 from cds_sorenson import CDSSorenson
 
-from cds_sorenson.api import batch_get_encoding_status, \
-    batch_restart_encoding, batch_start_encoding, batch_stop_encoding, \
-    get_encoding_status, restart_encoding, start_encoding, stop_encoding
+from cds_sorenson.api import get_encoding_status, restart_encoding, \
+    start_encoding, stop_encoding
 
 from cds_sorenson.error import SorensonError
 
@@ -64,7 +63,7 @@ class MockRequests(object):
         """Mock the get method."""
         MockRequests.called += 1
         if MockRequests.called > 1:
-            raise SorensonError
+            raise SorensonError()
         else:
             return cls.MockResponse()
 
@@ -105,22 +104,6 @@ def test_start_encoding(requests_post_mock, app, start_response):
     assert job_id == "1234-2345-abcd"
 
 
-@patch('cds_sorenson.api.requests.post')
-def test_batch_start_encoding(requests_post_mock, app, start_response):
-    """Test if starting encoding works."""
-    filename = '/sorenson_input/1111-dddd-3333-aaaa/data.mp4'
-    presets = ['Youtube 480p', 'Youtube 480p']
-
-    # Mock sorenson response
-    sorenson_response = MagicMock()
-    sorenson_response.text = start_response
-    sorenson_response.status_code = 200
-    requests_post_mock.return_value = sorenson_response
-
-    jobs_ids = batch_start_encoding(filename, presets)
-    assert jobs_ids == ["1234-2345-abcd", "1234-2345-abcd"]
-
-
 @patch('cds_sorenson.api.requests.get')
 def test_encoding_status(requests_get_mock, app, running_job_status_response):
     """Test if getting encoding status works."""
@@ -134,27 +117,6 @@ def test_encoding_status(requests_get_mock, app, running_job_status_response):
 
     encoding_status = get_encoding_status(job_id)
     assert encoding_status == ('Hold', 55.810001373291016)
-
-
-@patch('cds_sorenson.api.requests.get')
-def test_batch_encoding_status(requests_get_mock, app,
-                               running_job_status_response):
-    """Test if getting multiple encoding statuses works."""
-    jobs_ids = ["1234-2345-4444", "1234-2345-5555"]
-
-    response_dictionary = {
-        "1234-2345-4444": ('Hold', 55.810001373291016),
-        "1234-2345-5555": ('Hold', 55.810001373291016),
-    }
-
-    # Mock sorenson response
-    sorenson_response = MagicMock()
-    sorenson_response.text = running_job_status_response
-    sorenson_response.status_code = 200
-    requests_get_mock.return_value = sorenson_response
-
-    encoding_statuses = batch_get_encoding_status(jobs_ids)
-    assert encoding_statuses == response_dictionary
 
 
 @patch('cds_sorenson.api.requests.delete')
@@ -172,21 +134,6 @@ def test_stop_encoding(requests_delete_mock, app):
     assert returned_value is None
 
 
-@patch('cds_sorenson.api.requests.delete')
-def test_batch_stop_encoding(requests_delete_mock, app):
-    """Test if stopping multiple encoding jobs works."""
-    jobs_id = ["1234-2345-4444", "1234-2345-5555"]
-
-    # Mock sorenson response
-    sorenson_response = MagicMock()
-    sorenson_response.status_code = 200
-    requests_delete_mock.return_value = sorenson_response
-
-    returned_value = batch_stop_encoding(jobs_id)
-    # It should always return None
-    assert returned_value is None
-
-
 @patch('cds_sorenson.api.requests', MockRequests)
 def test_stop_encoding_twice_fails(app):
     """Test if stopping the same job twice fails."""
@@ -197,16 +144,6 @@ def test_stop_encoding_twice_fails(app):
     # ... and fails for the second
     with pytest.raises(SorensonError):
         stop_encoding(job_id)
-
-
-@patch('cds_sorenson.api.requests', MockRequests)
-def test_batch_stop_encoding_twice_does_not_fail(app):
-    """Test that batch-stopping the same job twice works."""
-    jobs_id = ["1234-2345-abcd", "1234-2345-abcd"]
-
-    # batch_stop_encoding should never raise an exception.
-    returned_value = batch_stop_encoding(jobs_id)
-    assert returned_value is None
 
 
 @patch('cds_sorenson.api.requests.post')
@@ -232,26 +169,9 @@ def test_restart_encoding(requests_delete_mock, requests_post_mock, app,
     assert job_id == "1234-2345-abcd"
 
 
-@patch('cds_sorenson.api.requests.post')
-@patch('cds_sorenson.api.requests.delete')
-def test_batch_restart_encoding(requests_delete_mock, requests_post_mock, app,
-                                start_response):
-    """Test if restarting encoding works."""
-    jobs_ids = ["1111-2222-aaaa", "1111-2222-bbbb"]
-    # It doesn't matter if we send the same file to encoding with the same
-    # preset, it should still work
-    filename = '/sorenson_input/1111-dddd-3333-aaaa/data.mp4'
-    presets = ['Youtube 480p', 'Youtube 480p']
-
-    # Mock sorenson responses
-    delete_response = MagicMock()
-    delete_response.status_code = 200
-    requests_delete_mock.return_value = delete_response
-
-    post_response = MagicMock()
-    post_response.text = start_response
-    post_response.status_code = 200
-    requests_post_mock.return_value = post_response
-
-    jobs_ids = batch_restart_encoding(jobs_ids, filename, presets)
-    assert jobs_ids == ["1234-2345-abcd", "1234-2345-abcd"]
+def test_invalid_preset(app):
+    """Test exception for invalid presets."""
+    invalid_preset = 'My-NonExistent-Preset'
+    with pytest.raises(SorensonError) as exc:
+        start_encoding('input', invalid_preset)
+    assert invalid_preset in str(exc)

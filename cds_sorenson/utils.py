@@ -26,59 +26,39 @@
 
 from __future__ import absolute_import, print_function
 
-import requests
+from os.path import basename, dirname, normpath
 
+import requests
 from flask import current_app
 
 from .error import SorensonError
 
 
-def generate_json_for_encoding(file_path, preset_name):
-    """Generate JSON that will be sent to Sorenson server to start encoding.
+def generate_json_for_encoding(input_file, preset_name, output_file=None):
+    """Generate JSON that will be sent to Sorenson server to start encoding."""
+    output_file = output_file or normpath('{0}/{1}/{2}-{3}'.format(
+        current_app.config['CDS_SORENSON_OUTPUT_FOLDER'],
+        dirname(input_file), basename(input_file), preset_name)
+    )
 
-    :param file_path: string with the full file path, something like
-        /eos/cds/test/sorenson/8f/m2/728-jsod98-8s9df2-89fg-lksdjf/data where
-        the last part "data" is the filename and the last directory is the
-        bucket id.
-    :param preset: id of the preset (taken from sorenson dashboard).
-    :returns: JSON that can be send to Sorenson server.
-    """
-    def _get_bucket_id(file_path):
-        """Return bucket ID from the file path."""
-        return file_path.split("/")[-2]
+    try:
+        preset_id = current_app.config['CDS_SORENSON_PRESETS'][preset_name][0]
+    except KeyError:
+        raise SorensonError('Invalid preset "{0}"'.format(preset_name))
 
-    output = {}
-
-    preset_config = current_app.config['CDS_SORENSON_PRESETS'].get(preset_name)
-    preset_id, extension = preset_config
-
-    bucket_id = _get_bucket_id(file_path)
-
-    # Use the bucket ID for sorenson dashboard as the filename will always be
-    # "data"
-    output['Name'] = 'CDS-' + bucket_id
-    output['QueueId'] = current_app.config['CDS_SORENSON_DEFAULT_QUEUE']
-
-    source_media = {}
-    source_media['FileUri'] = file_path
-    source_media['UserName'] = current_app.config['CDS_SORENSON_USERNAME']
-    source_media['Password'] = current_app.config['CDS_SORENSON_PASSWORD']
-
-    jobInfo = {}
-    jobInfo['SourceMediaList'] = [source_media]
-
-    output_folder = current_app.config['CDS_SORENSON_OUTPUT_FOLDER']
-
-    destination_list = {}
-    destination_list['FileUri'] = "{0}{1}/".format(output_folder, bucket_id)
-    jobInfo['DestinationList'] = [destination_list]
-
-    preset_id_json = {"PresetId": preset_id}
-    jobInfo['CompressionPresetList'] = [preset_id_json]
-
-    output['JobMediaInfo'] = jobInfo
-
-    return output
+    return dict(
+        Name='CDS File:{0} Preset:{1}'.format(input_file, preset_name),
+        QueueId=current_app.config['CDS_SORENSON_DEFAULT_QUEUE'],
+        JobMediaInfo=dict(
+            SourceMediaList=dict(
+                FileUri=input_file,
+                UserName=current_app.config['CDS_SORENSON_USERNAME'],
+                Password=current_app.config['CDS_SORENSON_PASSWORD'],
+            ),
+            DestinationList=[dict(FileUri='{}/'.format(output_file))],
+            CompressionPresetList=[dict(PresetId=preset_id)],
+        ),
+    )
 
 
 def get_status(job_id):
