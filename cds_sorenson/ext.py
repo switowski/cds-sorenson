@@ -26,6 +26,8 @@
 
 from __future__ import absolute_import, print_function
 
+import os
+
 from . import config
 
 
@@ -47,3 +49,10 @@ class CDSSorenson(object):
         for k in dir(config):
             if k.startswith('CDS_SORENSON_'):
                 app.config.setdefault(k, getattr(config, k))
+        # Set the proxies
+        if (os.environ.get('APP_CDS_SORENSON_PROXIES_HTTP') and
+                os.environ.get('APP_CDS_SORENSON_PROXIES_HTTPS')):
+            app.config['CDS_SORENSON_PROXIES'] = {
+                'http': os.environ.get('APP_CDS_SORENSON_PROXIES_HTTP'),
+                'https': os.environ.get('APP_CDS_SORENSON_PROXIES_HTTPS')
+            }

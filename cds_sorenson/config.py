@@ -295,3 +295,29 @@ quickly created but not too small to not be very pixelated).
 
 CDS_SORENSON_NAME_GENERATOR = 'cds_sorenson.utils.name_generator'
 """Generator for output file names."""
+
+CDS_SORENSON_PROXIES = {}
+"""Proxies to connect to Sorenson, quite useful for testing.
+
+The structure of the dictionary is as follows:
+
+.. code-block:: python
+
+    CDS_SORENSON_PROXIES = {
+        'http': 'socks5://127.0.0.1:8123',
+        'https': 'socks5://127.0.0.1:8123',
+    }
+
+Its value can be also set using environment variables:
+
+.. code-block:: console
+
+    $ export APP_CDS_SORENSON_PROXIES_HTTP="socks5://127.0.0.1:8123"
+    $ export APP_CDS_SORENSON_PROXIES_HTTPS="socks5://127.0.0.1:8123"
+
+This example assumes ``ssh`` tunneling:
+
+.. code-block:: console
+
+    $ ssh -fN -D 8123 <user-name>@wn03
+"""

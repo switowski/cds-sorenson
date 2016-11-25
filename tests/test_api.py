@@ -59,7 +59,7 @@ class MockRequests(object):
             self.status_code = 200
 
     @classmethod
-    def delete(cls, delete_url, headers):
+    def delete(cls, delete_url, headers, **kwargs):
         """Mock the get method."""
         MockRequests.called += 1
         if MockRequests.called > 1:

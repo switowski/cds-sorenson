@@ -52,10 +52,12 @@ def start_encoding(input_file, preset_ID, output_file=None):
     # Build the request of the encoding job
     json_params = generate_json_for_encoding(input_file, preset_ID,
                                              output_file)
-
+    proxies = current_app.config['CDS_SORENSON_PROXIES']
     headers = {'Accept': 'application/json'}
+
     response = requests.post(current_app.config['CDS_SORENSON_SUBMIT_URL'],
-                             headers=headers, json=json_params)
+                             headers=headers, json=json_params,
+                             proxies=proxies)
 
     data = json.loads(response.text)
 
@@ -77,8 +79,9 @@ def stop_encoding(job_id):
     delete_url = (current_app.config['CDS_SORENSON_DELETE_URL']
                              .format(job_id=job_id))
     headers = {'Accept': 'application/json'}
+    proxies = current_app.config['CDS_SORENSON_PROXIES']
 
-    response = requests.delete(delete_url, headers=headers)
+    response = requests.delete(delete_url, headers=headers, proxies=proxies)
     if response.status_code != requests.codes.ok:
         raise SorensonError(response.status_code)
 

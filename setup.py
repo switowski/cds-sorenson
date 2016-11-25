@@ -62,7 +62,7 @@ setup_requires = [
 
 install_requires = [
     'Flask-BabelEx>=0.9.2',
-    'requests>=2.11.1',
+    'requests[socks]>=2.11.1',
 ]
 
 packages = find_packages()
