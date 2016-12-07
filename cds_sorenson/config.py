@@ -26,6 +26,8 @@
 
 from __future__ import absolute_import, print_function
 
+import os
+
 
 CDS_SORENSON_USERNAME = ''
 CDS_SORENSON_PASSWORD = ''
@@ -299,3 +301,24 @@ quickly created but not too small to not be very pixelated).
 
 CDS_SORENSON_NAME_GENERATOR = 'cds_sorenson.utils.name_generator'
 """Generator for output file names."""
+
+CDS_SORENSON_PROXIES = os.environ.get('APP_CDS_SORENSON_PROXIES', None)
+"""Proxies to connect to Sorenson, quite useful for testing.
+
+The structure of the dictionary is as follows:
+
+.. code-block:: python
+
+    CDS_SORENSON_PROXIES = {
+        'http': 'socks5://127.0.01:8123',
+        'https': 'socks5://127.0.01:8123',
+    }
+
+Its value can be also set using environment variables (AKA ``export``)
+
+This example assumes ``ssh`` tunneling:
+
+.. code-block:: console
+
+    $ ssh -fN -D 8123 <user-name>@wn03
+"""

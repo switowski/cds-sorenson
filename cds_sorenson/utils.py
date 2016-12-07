@@ -91,11 +91,13 @@ def get_status(job_id):
                         .format(job_id=job_id))
 
     headers = {'Accept': 'application/json'}
+    proxies = current_app.config['CDS_SORENSON_PROXIES']
 
-    response = requests.get(current_jobs_url, headers=headers)
+    response = requests.get(current_jobs_url, headers=headers, proxies=proxies)
 
     if response.status_code == 404:
-        response = requests.get(archive_jobs_url, headers=headers)
+        response = requests.get(
+            archive_jobs_url, headers=headers, proxies=proxies)
 
     if response.status_code == requests.codes.ok:
         return response.text
