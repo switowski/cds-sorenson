@@ -35,12 +35,6 @@ Important: The username and password will be visible in the metadata on the
 Sorenson server, so please use a separate account just for Sorenson!
 """
 
-CDS_SORENSON_OUTPUT_FOLDER = ''
-"""Output folder where the transcoded files will be stored
-
-For example: file://cern.ch/dfs/Users/s/switowsk/Sorenson/OUTPUT/
-"""
-
 CDS_SORENSON_SUBMIT_URL = 'http://sorenson01.cern.ch/api/jobs'
 """Sorenson endpoint for submitting a new transcoding job."""
 
