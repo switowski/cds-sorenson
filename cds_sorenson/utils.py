@@ -45,12 +45,12 @@ def generate_json_for_encoding(input_file, preset_id, output_file):
         Name='CDS File:{0} Preset:{1}'.format(input_file, preset_id),
         QueueId=current_app.config['CDS_SORENSON_DEFAULT_QUEUE'],
         JobMediaInfo=dict(
-            SourceMediaList=dict(
+            SourceMediaList=[dict(
                 FileUri=input_file,
                 UserName=current_app.config['CDS_SORENSON_USERNAME'],
                 Password=current_app.config['CDS_SORENSON_PASSWORD'],
-            ),
-            DestinationList=[dict(FileUri='{}/'.format(output_file))],
+            )],
+            DestinationList=[dict(FileUri='{}'.format(output_file))],
             CompressionPresetList=[dict(PresetId=preset_id)],
         ),
     )

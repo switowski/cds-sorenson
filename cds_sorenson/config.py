@@ -31,6 +31,8 @@ CDS_SORENSON_USERNAME = ''
 CDS_SORENSON_PASSWORD = ''
 """Username and password to access the video on the filesystem.
 
+Not needed anymore as we set the access rights on eos for webcast user.
+
 Important: The username and password will be visible in the metadata on the
 Sorenson server, so please use a separate account just for Sorenson!
 """
