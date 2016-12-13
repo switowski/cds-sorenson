@@ -114,8 +114,8 @@ def get_encoding_status(job_id):
     # there are different ways to get the status of a job, depending if
     # the job was successful, so we should check for the status code in
     # different places
-    job_status = status_json.get('Status', None).get('Status')
-    job_progress = status_json.get('Status', None).get('Progress')
+    job_status = status_json.get('Status', {}).get('Status')
+    job_progress = status_json.get('Status', {}).get('Progress')
     if job_status:
         return SORENSON_STATUSES.get(job_status), job_progress
     # status not found? check in different place
@@ -142,3 +142,10 @@ def restart_encoding(job_id, input_file, preset_ID, output_file=None):
         # case the encoding will finish and we will overwrite the file.
         pass
     return start_encoding(input_file, preset_ID, output_file)
+
+
+def get_presets_by_aspect_ratio(aspect_ratio):
+    """Return the list of preset IDs for a given aspect ratio."""
+    return [preset.get('preset_id')
+            for preset in current_app.config['CDS_SORENSON_PRESETS']
+                                     .get(aspect_ratio, [])]
