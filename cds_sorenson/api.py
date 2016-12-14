@@ -67,7 +67,8 @@ def start_encoding(input_file, preset_ID, output_file=None):
     else:
         # something is wrong - sorenson server is not responding or the
         # configuration is wrong and we can't contact sorenson server
-        raise SorensonError(response.status_code)
+        raise SorensonError("{0}: {1}".format(response.status_code,
+                                              response.text))
 
 
 def stop_encoding(job_id):
@@ -83,7 +84,8 @@ def stop_encoding(job_id):
 
     response = requests.delete(delete_url, headers=headers, proxies=proxies)
     if response.status_code != requests.codes.ok:
-        raise SorensonError(response.status_code)
+        raise SorensonError("{0}: {1}".format(response.status_code,
+                                              response.text))
 
 
 def get_encoding_status(job_id):

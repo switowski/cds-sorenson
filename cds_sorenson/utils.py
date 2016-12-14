@@ -95,7 +95,8 @@ def get_status(job_id):
     if response.status_code == requests.codes.ok:
         return response.text
     else:
-        raise SorensonError(response.status_code)
+        raise SorensonError("{0}: {1}".format(response.status_code,
+                                              response.text))
 
 
 def _get_preset_config(preset_id):
