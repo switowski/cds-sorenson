@@ -28,16 +28,16 @@
 from __future__ import absolute_import, print_function
 
 import pytest
-
 from flask import Flask
 from mock import MagicMock, patch
 
 from cds_sorenson import CDSSorenson
-
-from cds_sorenson.api import get_encoding_status, restart_encoding, \
-    start_encoding, stop_encoding
-
-from cds_sorenson.error import SorensonError
+from cds_sorenson.api import get_available_aspect_ratios, \
+    get_available_preset_qualities, get_encoding_status, get_preset_id, \
+    get_presets_by_aspect_ratio, restart_encoding, start_encoding, \
+    stop_encoding
+from cds_sorenson.error import InvalidAspectRatioError, \
+    InvalidResolutionError, SorensonError
 
 
 class MockRequests(object):
@@ -93,7 +93,7 @@ def test_start_encoding(requests_post_mock, app, start_response):
     filename = 'file://cernbox-smb.cern.ch/eoscds/test/sorenson_input/' \
                '1111-dddd-3333-aaaa/data.mp4'
     # Random preset from config
-    preset = 'dc2187a3-8f64-4e73-b458-7370a88d92d7'
+    aspect_ratio, quality = '16:9', '360p'
 
     # Mock sorenson response
     sorenson_response = MagicMock()
@@ -101,7 +101,7 @@ def test_start_encoding(requests_post_mock, app, start_response):
     sorenson_response.status_code = 200
     requests_post_mock.return_value = sorenson_response
 
-    job_id = start_encoding(filename, preset)
+    job_id = start_encoding(filename, '', quality, aspect_ratio)
     assert job_id == "1234-2345-abcd"
 
 
@@ -155,7 +155,7 @@ def test_restart_encoding(requests_delete_mock, requests_post_mock, app,
     job_id = "1111-2222-aaaa"
     filename = '/sorenson_input/1111-dddd-3333-aaaa/data.mp4'
     # Random preset from config
-    preset = 'dc2187a3-8f64-4e73-b458-7370a88d92d7'
+    aspect_ratio, quality = '16:9', '360p'
 
     # Mock sorenson responses
     delete_response = MagicMock()
@@ -167,13 +167,57 @@ def test_restart_encoding(requests_delete_mock, requests_post_mock, app,
     post_response.status_code = 200
     requests_post_mock.return_value = post_response
 
-    job_id = restart_encoding(job_id, filename, preset)
+    job_id = restart_encoding(job_id, filename, '', quality, aspect_ratio)
     assert job_id == "1234-2345-abcd"
 
 
-def test_invalid_preset(app):
-    """Test exception for invalid presets."""
-    invalid_preset = 'My-NonExistent-Preset'
-    with pytest.raises(SorensonError) as exc:
-        start_encoding('input', invalid_preset)
-    assert invalid_preset in str(exc)
+def test_invalid_request(app):
+    """Test exceptions for invalid requests."""
+    invalid_preset_quality = '522p'
+    invalid_aspect_ratio = '15:3'
+
+    with pytest.raises(InvalidAspectRatioError) as exc:
+        start_encoding('input', '', '480p', invalid_aspect_ratio)
+    assert invalid_aspect_ratio in str(exc)
+
+    with pytest.raises(InvalidResolutionError) as exc:
+        start_encoding('input', '', invalid_preset_quality, '16:9')
+    assert '16:9' in str(exc)
+    assert invalid_preset_quality in str(exc)
+
+
+def test_get_presets_by_aspect_ratio(app):
+    """Test `get_presets_by_aspect_ratio` function."""
+    assert get_presets_by_aspect_ratio('16:9') == [
+        'dc2187a3-8f64-4e73-b458-7370a88d92d7',
+        'd9683573-f1c6-46a4-9181-d6048b2db305',
+        '79e9bde9-adcc-4603-b686-c7e2cb2d73d2',
+        '9bd7c93f-88fa-4e59-a811-c81f4b0543db',
+        '55f586de-15a0-45cd-bd30-bb6cf5bfe2b8',
+    ]
+
+
+def test_available_aspect_ratios(app):
+    """Test `get_available_aspect_ratios` function."""
+    assert get_available_aspect_ratios() == ['16:9', '4:3', '3:2', '20:9',
+                                             '256:135', '64:35', '2:1']
+    assert get_available_aspect_ratios(pairs=True) == [
+        (16, 9), (4, 3), (3, 2), (20, 9), (256, 135), (64, 35), (2, 1)]
+
+
+def test_available_preset_qualities(app):
+    """Test `get_available_preset_qualities` function."""
+    assert get_available_preset_qualities() == ['360p', '1080p', '720p',
+                                                '480p', '240p', '1024p']
+
+
+def test_get_preset_id(app):
+    """Test `get_preset_id` function."""
+    assert get_preset_id('360p',
+                         '16:9') == 'dc2187a3-8f64-4e73-b458-7370a88d92d7'
+    assert get_preset_id('480p',
+                         '2:1') == '120ebe70-1862-4dce-b4fb-6ddfc7b7f364'
+    with pytest.raises(InvalidAspectRatioError):
+        get_preset_id('480p', '27:9')
+    with pytest.raises(InvalidResolutionError):
+        get_preset_id('480p', '20:9')

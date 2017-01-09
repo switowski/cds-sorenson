@@ -29,7 +29,7 @@ from __future__ import absolute_import, print_function
 
 from jsonschema import validate
 
-from cds_sorenson.utils import generate_json_for_encoding
+from cds_sorenson.utils import _get_preset_config, generate_json_for_encoding
 
 
 def test_generate_json_for_encoding(app):
@@ -140,8 +140,21 @@ def test_generate_json_for_encoding(app):
                 'Preset:dc2187a3-8f64-4e73-b458-7370a88d92d7'
     }
     output = generate_json_for_encoding('/tmp/test_input_file.mp4',
-                                        'dc2187a3-8f64-4e73-b458-7370a88d92d7',
-                                        '/tmp/test_output_file.mp4')
+                                        '/tmp/test_output_file.mp4',
+                                        'dc2187a3-8f64-4e73-b458-7370a88d92d7')
 
     validate(output, sorenson_schema)
     assert output == expected_output
+
+
+def test_get_preset_config(app):
+    """Test `_get_preset_config` function."""
+    assert _get_preset_config('dc2187a3-8f64-4e73-b458-7370a88d92d7') == {
+        'width': 640,
+        'height': 360,
+        'audio_bitrate': 64,
+        'video_bitrate': 836,
+        'total_bitrate': 900,
+        'frame_rate': 25,
+        'preset_id': 'dc2187a3-8f64-4e73-b458-7370a88d92d7',
+    }

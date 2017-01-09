@@ -26,13 +26,15 @@
 
 from __future__ import absolute_import, print_function
 
+from itertools import chain
+
 import requests
 from flask import current_app
 
 from .error import SorensonError
 
 
-def generate_json_for_encoding(input_file, preset_id, output_file):
+def generate_json_for_encoding(input_file, output_file, preset_id):
     """Generate JSON that will be sent to Sorenson server to start encoding."""
     current_preset = _get_preset_config(preset_id)
     # Make sure the preset config exists for a given preset_id
@@ -101,8 +103,7 @@ def get_status(job_id):
 
 def _get_preset_config(preset_id):
     """Return preset config based on the preset_id."""
-    PRESETS = current_app.config['CDS_SORENSON_PRESETS']
-    presets_list = [item for presets in PRESETS.values() for item in presets]
-    for preset in presets_list:
-        if preset_id == preset.get('preset_id'):
-            return preset
+    for outer_dict in current_app.config['CDS_SORENSON_PRESETS'].values():
+        for inner_dict in outer_dict.values():
+            if inner_dict['preset_id'] == preset_id:
+                return inner_dict

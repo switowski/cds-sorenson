@@ -62,6 +62,7 @@ setup_requires = [
 
 install_requires = [
     'Flask-BabelEx>=0.9.2',
+    'pysocks>=1.6.5',
     'requests[socks]>=2.11.1',
 ]
 

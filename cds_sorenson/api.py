@@ -27,31 +27,39 @@
 from __future__ import absolute_import, print_function
 
 import json
+from collections import OrderedDict
+from itertools import chain
 
 import requests
 from flask import current_app
 
-from .error import SorensonError
+from .error import InvalidAspectRatioError, InvalidResolutionError, \
+    SorensonError
 from .utils import generate_json_for_encoding, get_status
 
 
-def start_encoding(input_file, preset_ID, output_file=None):
+def start_encoding(input_file, output_file, preset_quality,
+                   display_aspect_ratio, **kwargs):
     """Encode a video that is already in the input folder.
 
     :param input_file: string with the filename, something like
         /eos/cds/test/sorenson/8f/m2/728-jsod98-8s9df2-89fg-lksdjf/data where
         the last part "data" is the filename and the last directory is the
         bucket id.
-    :param preset_ID: id of the preset.
     :param output_file: the file to output the transcoded file.
+    :param preset_quality: quality of the preset.
+    :param display_aspect_ratio: the video's aspect ratio
+    :param kwargs: other technical metadata
     :returns: job ID.
     """
-    current_app.logger.debug('Encoding {0} with the preset {1}'
-                             .format(input_file, preset_ID))
+    current_app.logger.debug('Encoding {0} with preset quality {1}'
+                             .format(input_file, preset_quality))
+
+    preset_id = get_preset_id(preset_quality, display_aspect_ratio)
 
     # Build the request of the encoding job
-    json_params = generate_json_for_encoding(input_file, preset_ID,
-                                             output_file)
+    json_params = generate_json_for_encoding(input_file, output_file,
+                                             preset_id)
     proxies = current_app.config['CDS_SORENSON_PROXIES']
     headers = {'Accept': 'application/json'}
 
@@ -97,20 +105,6 @@ def get_encoding_status(job_id):
     :param job_id: string with the job ID.
     :returns: tuple with the status message and progress in %.
     """
-    SORENSON_STATUSES = {
-        0: 'Undefined',
-        1: 'Waiting',
-        2: 'Downloading',
-        3: 'Transcoding',
-        4: 'Uploading',
-        5: 'Finished',
-        6: 'Error',
-        7: 'Canceled',
-        8: 'Deleted',
-        9: 'Hold',
-        10: 'Incomplete'
-    }
-
     status = get_status(job_id)
     if status == '':
         # encoding job was canceled
@@ -122,23 +116,25 @@ def get_encoding_status(job_id):
     job_status = status_json.get('Status', {}).get('Status')
     job_progress = status_json.get('Status', {}).get('Progress')
     if job_status:
-        return SORENSON_STATUSES.get(job_status), job_progress
+        return current_app.config['CDS_SORENSON_STATUSES'].get(job_status), \
+               job_progress
     # status not found? check in different place
     job_status = status_json.get('StatusStateId')
     if job_status:
         # job is probably either finished or failed, so the progress will
         # always be 100% in this case
-        return SORENSON_STATUSES.get(job_status), 100
+        return current_app.config['CDS_SORENSON_STATUSES'].get(job_status), 100
     # No status was found (which shouldn't happen)
     raise SorensonError('No status found for job: {0}'.format(job_id))
 
 
-def restart_encoding(job_id, input_file, preset_ID, output_file=None):
+def restart_encoding(job_id, input_file, output_file, preset_quality,
+                     display_aspect_ratio, **kwargs):
     """Try to stop the encoding job and start a new one.
 
-    It's impossible to get the input_file and preset_ID from the job_id, if
-    the job has not yet finished, so we need to specify all parameters for
-    stopping and starting the encoding job.
+    It's impossible to get the input_file and preset_quality from the
+    job_id, if the job has not yet finished, so we need to specify all
+    parameters for stopping and starting the encoding job.
     """
     try:
         stop_encoding(job_id)
@@ -146,11 +142,53 @@ def restart_encoding(job_id, input_file, preset_ID, output_file=None):
         # If we failed to stop the encoding job, ignore it - in the worst
         # case the encoding will finish and we will overwrite the file.
         pass
-    return start_encoding(input_file, preset_ID, output_file)
+    return start_encoding(input_file, output_file, preset_quality,
+                          display_aspect_ratio, **kwargs)
 
 
 def get_presets_by_aspect_ratio(aspect_ratio):
     """Return the list of preset IDs for a given aspect ratio."""
-    return [preset.get('preset_id')
-            for preset in current_app.config['CDS_SORENSON_PRESETS']
-                                     .get(aspect_ratio, [])]
+    try:
+        inner_dict = current_app.config['CDS_SORENSON_PRESETS'][aspect_ratio]
+        return [preset['preset_id'] for preset in inner_dict.values()]
+    except KeyError:
+        raise InvalidAspectRatioError(aspect_ratio)
+
+
+def get_available_aspect_ratios(pairs=False):
+    """Return all available aspect ratios.
+
+    :param pairs: if True, will return aspect ratios as pairs of integers
+    """
+    ratios = [key for key in current_app.config['CDS_SORENSON_PRESETS']]
+    if pairs:
+        ratios = [tuple(map(int, ratio.split(':', 1))) for ratio in ratios]
+    return ratios
+
+
+def get_available_preset_qualities():
+    """Return all available preset qualities."""
+    all_qualities = [
+        outer_dict.keys()
+        for outer_dict in current_app.config['CDS_SORENSON_PRESETS'].values()
+    ]
+    return list(OrderedDict.fromkeys(chain(*all_qualities)))
+
+
+def get_preset_id(preset_quality, display_aspect_ratio, **kwargs):
+    """Return the preset ID of the requested quality on given aspect ratio.
+
+    :param preset_quality: the preset quality to use
+    :param display_aspect_ratio: the video's aspect ratio
+    :returns the corresponding preset ID or `None` if the given aspect ratio
+    does not support this quality
+    """
+    try:
+        aspect_ratio = current_app.config['CDS_SORENSON_PRESETS'][
+            display_aspect_ratio]
+        try:
+            return aspect_ratio[preset_quality]['preset_id']
+        except KeyError:
+            raise InvalidResolutionError(display_aspect_ratio, preset_quality)
+    except KeyError:
+        raise InvalidAspectRatioError(display_aspect_ratio)

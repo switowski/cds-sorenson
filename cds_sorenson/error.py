@@ -35,5 +35,31 @@ class SorensonError(Exception):
         self.error_message = error_message
 
     def __str__(self):
-        """Show error message."""
+        """Error message."""
         return self.error_message
+
+
+class InvalidAspectRatioError(SorensonError):
+    """Error for invalid aspect ratios."""
+
+    def __init__(self, aspect_ratio):
+        """Initialize exception with aspect ratio."""
+        self.aspect_ratio = aspect_ratio
+
+    def __str__(self):
+        """Error message."""
+        return 'Aspect ratio "{0}" is not supported.'.format(self.aspect_ratio)
+
+
+class InvalidResolutionError(SorensonError):
+    """Error for invalid resolutions."""
+
+    def __init__(self, aspect_ratio, resolution):
+        """Initialize exception with aspect ratio and resolution."""
+        self.aspect_ratio = aspect_ratio
+        self.resolution = resolution
+
+    def __str__(self):
+        """Error message."""
+        return 'Aspect ratio "{0}" does not support resolution {1}.'.format(
+            self.aspect_ratio, self.resolution)
