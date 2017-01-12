@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #
 # This file is part of CERN Document Server.
-# Copyright (C) 2016 CERN.
+# Copyright (C) 2016, 2017 CERN.
 #
 # Invenio is free software; you can redistribute it
 # and/or modify it under the terms of the GNU General Public License as
@@ -35,7 +35,7 @@ from flask import current_app
 
 from .error import InvalidAspectRatioError, InvalidResolutionError, \
     SorensonError
-from .utils import generate_json_for_encoding, get_status
+from .utils import _filepath_for_samba, generate_json_for_encoding, get_status
 
 
 def start_encoding(input_file, output_file, preset_quality,
@@ -52,6 +52,9 @@ def start_encoding(input_file, output_file, preset_quality,
     :param kwargs: other technical metadata
     :returns: job ID.
     """
+    input_file = _filepath_for_samba(input_file)
+    output_file = _filepath_for_samba(output_file)
+
     current_app.logger.debug('Encoding {0} with preset quality {1}'
                              .format(input_file, preset_quality))
 
@@ -62,7 +65,6 @@ def start_encoding(input_file, output_file, preset_quality,
                                              preset_id)
     proxies = current_app.config['CDS_SORENSON_PROXIES']
     headers = {'Accept': 'application/json'}
-
     response = requests.post(current_app.config['CDS_SORENSON_SUBMIT_URL'],
                              headers=headers, json=json_params,
                              proxies=proxies)

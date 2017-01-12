@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #
 # This file is part of CERN Document Server.
-# Copyright (C) 2016 CERN.
+# Copyright (C) 2016, 2017 CERN.
 #
 # Invenio is free software; you can redistribute it
 # and/or modify it under the terms of the GNU General Public License as
@@ -107,3 +107,14 @@ def _get_preset_config(preset_id):
         for inner_dict in outer_dict.values():
             if inner_dict['preset_id'] == preset_id:
                 return inner_dict
+
+
+def _filepath_for_samba(filepath):
+    """Adjust file path for Samba protocol.
+
+    Sorenson has the eos directory mounted through samba, so the paths
+    need to be adjusted.
+    """
+    samba_dir = current_app.config['CDS_SORENSON_SAMBA_DIRECTORY']
+    eos_dir = current_app.config['CDS_SORENSON_CDS_DIRECTORY']
+    return filepath.replace(eos_dir, samba_dir)

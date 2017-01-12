@@ -337,3 +337,9 @@ CDS_SORENSON_STATUSES = {
     10: 'Incomplete',
 }
 """Statuses returned from Sorenson."""
+
+CDS_SORENSON_SAMBA_DIRECTORY = 'file://cernbox-smb.cern.ch/eoscds/'
+"""Sorenson's EOS internal mounting point via samba."""
+
+CDS_SORENSON_CDS_DIRECTORY = '/eos/workspace/c/cds/'
+"""Video base file location in CDS."""
