@@ -113,8 +113,7 @@ CDS_SORENSON_PRESETS = OrderedDict([
             'video_bitrate': 19872,
             'total_bitrate': 20000,
             'frame_rate': 25,
-            'preview': False,
-            'smil': False,
+            'no_smil': True,
             'preset_id': 'a0f072d3-c319-47e1-bdc4-787ad10be63c'}),
         ('1080ph265', {
             # Different codec: H.265 - for download only - no SMIL file
@@ -124,8 +123,7 @@ CDS_SORENSON_PRESETS = OrderedDict([
             'video_bitrate': 5872,
             'total_bitrate': 6000,
             'frame_rate': 25,
-            'preview': False,
-            'smil': False,
+            'no_smil': True,
             'preset_id': 'fd15cb19-6750-4872-a82b-e4625b842c30'})])),
     ('4:3', OrderedDict([
         ('360p', {
@@ -275,8 +273,7 @@ CDS_SORENSON_PRESETS = OrderedDict([
             'video_bitrate': 19872,
             'total_bitrate': 20000,
             'frame_rate': 25,
-            'preview': False,
-            'smil': False,
+            'no_smil': True,
             'preset_id': 'bddf6b9f-c15a-4333-9809-bdb9a244056b'})])),
     ('64:35', OrderedDict([
         ('360p', {
@@ -343,10 +340,8 @@ The first preset of each list is the previewer (slave small enough to be
 quickly created but not too small to not be very pixelated).
 
 Optional parameters for each preset configuration:
-preview: specifies if the file should be available for preview or only for
-    downloading (default is True)
-smil: specifies if this file should be added to the SMIL file
-    (default is True)
+no_smil: specifies if this file should be added to the SMIL file
+    (default is False)
 """
 
 CDS_SORENSON_NAME_GENERATOR = 'cds_sorenson.utils.name_generator'
